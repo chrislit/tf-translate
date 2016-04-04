@@ -25,7 +25,7 @@ import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
-from tensorflow.models.rnn.translate import data_utils
+from  data_utils
 
 
 class Seq2SeqModel(object):
@@ -110,7 +110,7 @@ class Seq2SeqModel(object):
           encoder_inputs, decoder_inputs, cell,
           num_encoder_symbols=source_vocab_size,
           num_decoder_symbols=target_vocab_size,
-          embedding_size=size,
+          # embedding_size=size,
           output_projection=output_projection,
           feed_previous=do_decode)
 

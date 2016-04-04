@@ -15,12 +15,12 @@
 
 """Binary for training translation models and decoding from them.
 
-Running this program without --decode will download the WMT corpus into
-the directory specified as --data_dir and tokenize it in a very basic way,
-and then start training a model saving checkpoints to --train_dir.
+Running this program without --decode will tokenize the data
+the directory specified as --data_dir in a very basic way,
+and then start training a model, saving checkpoints to --train_dir.
 
 Running with --decode starts an interactive loop so you can see how
-the current checkpoint translates English sentences into French.
+the current checkpoint translates source-text sentences into target-text.
 
 See the following papers for more information on neural translation models.
  * http://arxiv.org/abs/1409.3215
@@ -54,8 +54,8 @@ tf.app.flags.DEFINE_integer("batch_size", 64,
                             "Batch size to use during training.")
 tf.app.flags.DEFINE_integer("size", 1024, "Size of each model layer.")
 tf.app.flags.DEFINE_integer("num_layers", 3, "Number of layers in the model.")
-tf.app.flags.DEFINE_integer("en_vocab_size", 40000, "English vocabulary size.")
-tf.app.flags.DEFINE_integer("fr_vocab_size", 40000, "French vocabulary size.")
+tf.app.flags.DEFINE_integer("src_vocab_size", 40000, "source-text vocabulary size.")
+tf.app.flags.DEFINE_integer("tar_vocab_size", 40000, "target-text vocabulary size.")
 tf.app.flags.DEFINE_string("data_dir", "/tmp", "Data directory")
 tf.app.flags.DEFINE_string("train_dir", "/tmp", "Training directory.")
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
@@ -115,7 +115,7 @@ def read_data(source_path, target_path, max_size=None):
 def create_model(session, forward_only):
   """Create translation model and initialize or load parameters in session."""
   model = seq2seq_model.Seq2SeqModel(
-      FLAGS.en_vocab_size, FLAGS.fr_vocab_size, _buckets,
+      FLAGS.src_vocab_size, FLAGS.tar_vocab_size, _buckets,
       FLAGS.size, FLAGS.num_layers, FLAGS.max_gradient_norm, FLAGS.batch_size,
       FLAGS.learning_rate, FLAGS.learning_rate_decay_factor,
       forward_only=forward_only)
@@ -130,11 +130,11 @@ def create_model(session, forward_only):
 
 
 def train():
-  """Train a en->fr translation model using WMT data."""
-  # Prepare WMT data.
-  print("Preparing WMT data in %s" % FLAGS.data_dir)
-  en_train, fr_train, en_dev, fr_dev, _, _ = data_utils.prepare_wmt_data(
-      FLAGS.data_dir, FLAGS.en_vocab_size, FLAGS.fr_vocab_size)
+  """Train a src->tar translation model."""
+  # Prepare data.
+  print("Preparing data in %s" % FLAGS.data_dir)
+  src_train, tar_train, src_dev, tar_dev, _, _ = data_utils.prepare__data(
+      FLAGS.data_dir, FLAGS.src_vocab_size, FLAGS.tar_vocab_size)
 
   with tf.Session() as sess:
     # Create model.
@@ -144,8 +144,8 @@ def train():
     # Read data into buckets and compute their sizes.
     print ("Reading development and training data (limit: %d)."
            % FLAGS.max_train_data_size)
-    dev_set = read_data(en_dev, fr_dev)
-    train_set = read_data(en_train, fr_train, FLAGS.max_train_data_size)
+    dev_set = read_data(src_dev, tar_dev)
+    train_set = read_data(src_train, tar_train, FLAGS.max_train_data_size)
     train_bucket_sizes = [len(train_set[b]) for b in xrange(len(_buckets))]
     train_total_size = float(sum(train_bucket_sizes))
 
@@ -212,12 +212,12 @@ def decode():
     model.batch_size = 1  # We decode one sentence at a time.
 
     # Load vocabularies.
-    en_vocab_path = os.path.join(FLAGS.data_dir,
-                                 "vocab%d.en" % FLAGS.en_vocab_size)
-    fr_vocab_path = os.path.join(FLAGS.data_dir,
-                                 "vocab%d.fr" % FLAGS.fr_vocab_size)
-    en_vocab, _ = data_utils.initialize_vocabulary(en_vocab_path)
-    _, rev_fr_vocab = data_utils.initialize_vocabulary(fr_vocab_path)
+    src_vocab_path = os.path.join(FLAGS.data_dir,
+                                 "vocab%d.src" % FLAGS.src_vocab_size)
+    tar_vocab_path = os.path.join(FLAGS.data_dir,
+                                 "vocab%d.tar" % FLAGS.tar_vocab_size)
+    src_vocab, _ = data_utils.initialize_vocabulary(src_vocab_path)
+    _, rev_tar_vocab = data_utils.initialize_vocabulary(tar_vocab_path)
 
     # Decode from standard input.
     sys.stdout.write("> ")
@@ -225,7 +225,7 @@ def decode():
     sentence = sys.stdin.readline()
     while sentence:
       # Get token-ids for the input sentence.
-      token_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), en_vocab)
+      token_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), src_vocab)
       # Which bucket does it belong to?
       bucket_id = min([b for b in xrange(len(_buckets))
                        if _buckets[b][0] > len(token_ids)])
@@ -240,8 +240,8 @@ def decode():
       # If there is an EOS symbol in outputs, cut them at that point.
       if data_utils.EOS_ID in outputs:
         outputs = outputs[:outputs.index(data_utils.EOS_ID)]
-      # Print out French sentence corresponding to outputs.
-      print(" ".join([tf.compat.as_str(rev_fr_vocab[output]) for output in outputs]))
+      # Print out target-text sentence corresponding to outputs.
+      print(" ".join([tf.compat.as_str(rev_tar_vocab[output]) for output in outputs]))
       print("> ", end="")
       sys.stdout.flush()
       sentence = sys.stdin.readline()
