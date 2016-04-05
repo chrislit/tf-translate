@@ -41,8 +41,8 @@ import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
-from tensorflow.models.rnn.translate import data_utils
-from tensorflow.models.rnn.translate import seq2seq_model
+import data_utils
+import seq2seq_model
 
 
 tf.app.flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
@@ -62,10 +62,13 @@ tf.app.flags.DEFINE_integer("max_train_data_size", 0,
                             "Limit on the size of training data (0: no limit).")
 tf.app.flags.DEFINE_integer("steps_per_checkpoint", 200,
                             "How many training steps to do per checkpoint.")
+tf.app.flags.DEFINE_boolean("char", False,
+                            "Tokenize as characters rather than words.")
 tf.app.flags.DEFINE_boolean("decode", False,
                             "Set to True for interactive decoding.")
 tf.app.flags.DEFINE_boolean("self_test", False,
                             "Run a self-test if this is set to True.")
+
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -133,8 +136,9 @@ def train():
   """Train a src->tar translation model."""
   # Prepare data.
   print("Preparing data in %s" % FLAGS.data_dir)
-  src_train, tar_train, src_dev, tar_dev, _, _ = data_utils.prepare__data(
-      FLAGS.data_dir, FLAGS.src_vocab_size, FLAGS.tar_vocab_size)
+  tokenizer = data_utils.basic_char_tokenizer if FLAGS.char else None
+  src_train, tar_train, src_dev, tar_dev, _, _ = data_utils.prepare_data(
+      FLAGS.data_dir, FLAGS.src_vocab_size, FLAGS.tar_vocab_size, tokenizer)
 
   with tf.Session() as sess:
     # Create model.
@@ -213,9 +217,9 @@ def decode():
 
     # Load vocabularies.
     src_vocab_path = os.path.join(FLAGS.data_dir,
-                                 "vocab%d.src" % FLAGS.src_vocab_size)
+                                 "vocab%d.source" % FLAGS.src_vocab_size)
     tar_vocab_path = os.path.join(FLAGS.data_dir,
-                                 "vocab%d.tar" % FLAGS.tar_vocab_size)
+                                 "vocab%d.target" % FLAGS.tar_vocab_size)
     src_vocab, _ = data_utils.initialize_vocabulary(src_vocab_path)
     _, rev_tar_vocab = data_utils.initialize_vocabulary(tar_vocab_path)
 
@@ -223,9 +227,10 @@ def decode():
     sys.stdout.write("> ")
     sys.stdout.flush()
     sentence = sys.stdin.readline()
+    tokenizer = data_utils.basic_char_tokenizer if FLAGS.char else None
     while sentence:
       # Get token-ids for the input sentence.
-      token_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), src_vocab)
+      token_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), src_vocab, tokenizer)
       # Which bucket does it belong to?
       bucket_id = min([b for b in xrange(len(_buckets))
                        if _buckets[b][0] > len(token_ids)])
@@ -241,7 +246,7 @@ def decode():
       if data_utils.EOS_ID in outputs:
         outputs = outputs[:outputs.index(data_utils.EOS_ID)]
       # Print out target-text sentence corresponding to outputs.
-      print(" ".join([tf.compat.as_str(rev_tar_vocab[output]) for output in outputs]))
+      print(("" if FLAGS.char else " ").join([tf.compat.as_str(rev_tar_vocab[output]) for output in outputs]))
       print("> ", end="")
       sys.stdout.flush()
       sentence = sys.stdin.readline()

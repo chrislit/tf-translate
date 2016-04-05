@@ -41,8 +41,11 @@ UNK_ID = 3
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE = re.compile(br"\d")
 
+def basic_char_tokenizer(sentence):
+  """Very basic tokenizer: split the sentence into character tokens."""
+  return [c for c in sentence.strip() if c]
 
-def basic_tokenizer(sentence):
+def basic_word_tokenizer(sentence):
   """Very basic tokenizer: split the sentence into a list of tokens."""
   words = []
   for space_separated_fragment in sentence.strip().split():
@@ -65,7 +68,7 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size,
     data_path: data file that will be used to create vocabulary.
     max_vocabulary_size: limit on the size of the created vocabulary.
     tokenizer: a function to use to tokenize each data sentence;
-      if None, basic_tokenizer will be used.
+      if None, basic_word_tokenizer will be used.
     normalize_digits: Boolean; if true, all digits are replaced by 0s.
   """
   if not gfile.Exists(vocabulary_path):
@@ -77,7 +80,7 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size,
         counter += 1
         if counter % 100000 == 0:
           print("  processing line %d" % counter)
-        tokens = tokenizer(line) if tokenizer else basic_tokenizer(line)
+        tokens = tokenizer(line) if tokenizer else basic_word_tokenizer(line)
         for w in tokens:
           word = re.sub(_DIGIT_RE, b"0", w) if normalize_digits else w
           if word in vocab:
@@ -134,7 +137,7 @@ def sentence_to_token_ids(sentence, vocabulary,
     sentence: the sentence in bytes format to convert to token-ids.
     vocabulary: a dictionary mapping tokens to integers.
     tokenizer: a function to use to tokenize each sentence;
-      if None, basic_tokenizer will be used.
+      if None, basic_word_tokenizer will be used.
     normalize_digits: Boolean; if true, all digits are replaced by 0s.
 
   Returns:
@@ -144,7 +147,7 @@ def sentence_to_token_ids(sentence, vocabulary,
   if tokenizer:
     words = tokenizer(sentence)
   else:
-    words = basic_tokenizer(sentence)
+    words = basic_word_tokenizer(sentence)
   if not normalize_digits:
     return [vocabulary.get(w, UNK_ID) for w in words]
   # Normalize digits by 0 before looking words up in the vocabulary.
@@ -164,7 +167,7 @@ def data_to_token_ids(data_path, target_path, vocabulary_path,
     target_path: path where the file with token-ids will be created.
     vocabulary_path: path to the vocabulary file.
     tokenizer: a function to use to tokenize each sentence;
-      if None, basic_tokenizer will be used.
+      if None, basic_word_tokenizer will be used.
     normalize_digits: Boolean; if true, all digits are replaced by 0s.
   """
   if not gfile.Exists(target_path):
@@ -190,7 +193,7 @@ def prepare_data(data_dir, src_vocabulary_size, tar_vocabulary_size, tokenizer=N
     src_vocabulary_size: size of the source-text vocabulary to create and use.
     tar_vocabulary_size: size of the target-text vocabulary to create and use.
     tokenizer: a function to use to tokenize each data sentence;
-      if None, basic_tokenizer will be used.
+      if None, basic_word_tokenizer will be used.
 
   Returns:
     A tuple of 6 elements:
@@ -203,25 +206,25 @@ def prepare_data(data_dir, src_vocabulary_size, tar_vocabulary_size, tokenizer=N
   """
   # Set paths to training & dev data
   train_path = os.path.join(data_dir, 'train')
-  dev_path = os.path.join(data_dir, 'dev')
+  dev_path = os.path.join(data_dir, 'devel')
 
   # Create vocabularies of the appropriate sizes.
-  tar_vocab_path = os.path.join(data_dir, "vocab%d.tar" % tar_vocabulary_size)
-  src_vocab_path = os.path.join(data_dir, "vocab%d.src" % src_vocabulary_size)
-  create_vocabulary(tar_vocab_path, train_path + ".tar", tar_vocabulary_size, tokenizer)
-  create_vocabulary(src_vocab_path, train_path + ".src", src_vocabulary_size, tokenizer)
+  tar_vocab_path = os.path.join(data_dir, "vocab%d.target" % tar_vocabulary_size)
+  src_vocab_path = os.path.join(data_dir, "vocab%d.source" % src_vocabulary_size)
+  create_vocabulary(tar_vocab_path, train_path + ".target", tar_vocabulary_size, tokenizer)
+  create_vocabulary(src_vocab_path, train_path + ".source", src_vocabulary_size, tokenizer)
 
   # Create token ids for the training data.
-  tar_train_ids_path = train_path + (".ids%d.tar" % tar_vocabulary_size)
-  src_train_ids_path = train_path + (".ids%d.src" % src_vocabulary_size)
-  data_to_token_ids(train_path + ".tar", tar_train_ids_path, tar_vocab_path, tokenizer)
-  data_to_token_ids(train_path + ".src", src_train_ids_path, src_vocab_path, tokenizer)
+  tar_train_ids_path = train_path + (".ids%d.target" % tar_vocabulary_size)
+  src_train_ids_path = train_path + (".ids%d.source" % src_vocabulary_size)
+  data_to_token_ids(train_path + ".target", tar_train_ids_path, tar_vocab_path, tokenizer)
+  data_to_token_ids(train_path + ".source", src_train_ids_path, src_vocab_path, tokenizer)
 
   # Create token ids for the development data.
-  tar_dev_ids_path = dev_path + (".ids%d.tar" % tar_vocabulary_size)
-  src_dev_ids_path = dev_path + (".ids%d.src" % src_vocabulary_size)
-  data_to_token_ids(dev_path + ".tar", tar_dev_ids_path, tar_vocab_path, tokenizer)
-  data_to_token_ids(dev_path + ".src", src_dev_ids_path, src_vocab_path, tokenizer)
+  tar_dev_ids_path = dev_path + (".ids%d.target" % tar_vocabulary_size)
+  src_dev_ids_path = dev_path + (".ids%d.source" % src_vocabulary_size)
+  data_to_token_ids(dev_path + ".target", tar_dev_ids_path, tar_vocab_path, tokenizer)
+  data_to_token_ids(dev_path + ".source", src_dev_ids_path, src_vocab_path, tokenizer)
 
   return (src_train_ids_path, tar_train_ids_path,
           src_dev_ids_path, tar_dev_ids_path,
